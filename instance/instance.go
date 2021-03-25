@@ -293,21 +293,84 @@ func (instance Instance) Desc() string {
 }
 
 func (instance Instance) ToolkitRow() []string {
-	fmt.Println(instance.Config.Name)
-	row := make([]string, 0)
+	// Status value
+	state := ""
+	if instance.State.Enabled {
+		state = "DOWN"
+	}
+	if instance.State.Up {
+		state = "UP"
+	}
+	if !instance.State.Enabled {
+		state = "DISABLED"
+	}
 
+	// Pid value
+	pid := ""
+	if instance.State.Up {
+		pid = fmt.Sprintf("%d", instance.State.PID)
+	}
+	// Threads, starttime, uptime hours fields (from procfs)
+	threads := ""
+	startTimeStr := ""
+	uptimeHours := ""
+	if instance.State.Up {
+		stat, err := utils.GetProcStats(instance.State.PID)
+		if err == nil {
+			threads = fmt.Sprintf("%d", stat.NumThreads)
+			startEpochNanos, _ := stat.StartTime()
+			startEpoch := int64(startEpochNanos)
+			startTime := time.Unix(startEpoch, 0)
+			startTimeStr = fmt.Sprintf("%s", startTime)
+			uptimeHours = fmt.Sprintf("%d", int(time.Now().Sub(startTime).Hours()))
+		}
+	}
+
+	instanceDirSizeStr := ""
+	instanceSize, err := utils.DirSizeBytes(instance.Config.Workdir)
+	if err == nil {
+		instanceDirSizeStr = fmt.Sprintf("%d MB", instanceSize/1e6)
+	}
+
+	dataDirSizeStr := ""
+	// + "/" allows DirSizeBytes to follow symlink: data -> /path/to/actual/data + "/"
+	dataSize, err := utils.DirSizeBytes(filepath.Join(instance.Config.Workdir, "data") + "/")
+	if err == nil {
+		dataDirSizeStr = fmt.Sprintf("%d MB", dataSize/1e6)
+	}
+
+	// Build columns:
+	row := make([]string, 0)
 	// Row name column (instance)
 	row = append(row, fmt.Sprintf("%s - %s", instance.Config.Type, instance.Config.Name))
+	// Status column
+	row = append(row, state)
+	// Port column
+	row = append(row, "TODO")
+	// Instance type column
+	row = append(row, instance.Config.Type)
 	// Instance name column
-	row = append(row, fmt.Sprintf("%s - %s", instance.Config.Type, instance.Config.Name))
-
+	row = append(row, instance.Config.Name)
+	// Start time column
+	row = append(row, startTimeStr)
+	// Uptime hours column
+	row = append(row, uptimeHours)
+	// PID column
+	row = append(row, pid)
+	// Threads column
+	row = append(row, threads)
+	// Dir size column
+	row = append(row, instanceDirSizeStr)
+	// Data size column
+	row = append(row, dataDirSizeStr)
+	// cmdline column
+	// row = append(row, instance.Config.RuntimeArgs...)
+	row = append(row, "---")
 	return row
 }
 
 func (instance Instance) PrintSummary() {
-
 	tableData := make([][]string, 0)
-
 	tableData = append(tableData, []string{"Type", instance.Config.Type})
 	tableData = append(tableData, []string{"Name", instance.Config.Name})
 	tableData = append(tableData, []string{"Path", instance.Config.Workdir})
@@ -316,7 +379,6 @@ func (instance Instance) PrintSummary() {
 		enabled = "Y"
 	}
 	tableData = append(tableData, []string{"Enabled", enabled})
-
 	state := ""
 	if instance.State.Enabled {
 		state = "DOWN"

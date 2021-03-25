@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/prometheus/procfs"
 )
 
 func GetMatchingPids(cmdArgs []string) ([]int, error) {
@@ -72,4 +74,16 @@ func WaitForProcess(cmdArgs []string, gracePeriod time.Duration) (int, error) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	return -1, errors.New("Instance hasn't started within grace period.")
+}
+
+func GetProcStats(pid int) (procfs.ProcStat, error) {
+	proc, err := procfs.NewProc(pid)
+	if err != nil {
+		return procfs.ProcStat{}, err
+	}
+	stat, err := proc.Stat()
+	if err != nil {
+		return procfs.ProcStat{}, err
+	}
+	return stat, nil
 }
